@@ -10,6 +10,8 @@ import { ClipLoader } from "react-spinners";
 import { db } from "../../../Utility/Firebase";
 import { useNavigate } from "react-router-dom";
 import { Type } from "../../../Utility/action.type";
+import { collection, doc, setDoc } from "firebase/firestore";
+import axios from "axios";
 
 function Payment() {
   const [{ user, basket }, dispatch] = useContext(DataContext);
@@ -35,30 +37,41 @@ function Payment() {
 
     try {
       setProcessing(true);
-      const response = await axiosInstance({
+      const response = await axios({
         method: "POST",
-        url: `/payments/create?total=${total * 100}`,
+        url: `https://amazonapi-oe4e.onrender.com/payment/create?total=${
+          total * 100
+        }`,
       });
-      // console.log(response.data);
-      const clientSecret = response.data?.clientSecret;
+      console.log(response.data);
+      const clientSecret = response.data?.ClientSecret;
       // client side  (react side confirmation)
+      console.log(clientSecret)
       const { paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
         payment_method: {
           card: elements.getElement(CardElement),
         },
       });
-      // console.log(paymentIntent);
+      console.log(paymentIntent);
       // after confirmation order fire store database save, clear basket
-      await db
-        .collection("users")
-        .doc(user.uid)
-        .collection("orders")
-        .doc(paymentIntent.id)
-        .set({
-          basket: basket,
-          amount: paymentIntent.amount,
-          created: paymentIntent.created,
-        });
+      // await db
+      //   .collection("users")
+      //   .doc(user.uid)
+      //   .collection("orders")
+      //   .doc(paymentIntent.id)
+      //   .set({
+      //     basket: basket,
+      //     amount: paymentIntent.amount,
+      //     created: paymentIntent.created,
+      //   });
+      const orderData = {
+        basket: basket, // the items purchased
+        amount: paymentIntent.amount, // the amount charged
+        created: paymentIntent.created, // timestamp of payment
+      };
+      const userOrdersRef = collection(db, "user", user.uid, "orders");
+      const orderDocRef = doc(userOrdersRef, paymentIntent.id); // Unique document ID based on paymentIntent
+      await setDoc(orderDocRef, orderData);
       dispatch({ type: Type.EMPTY_BASKET });
 
       setProcessing(false);
